@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from Constraint import Conv2dWithConstraint
 
-
 class EEGNet(nn.Module):
     def Depthwise_Separable_Conv(self, X, depthwiseConv, pointwiseConv):
         X = depthwiseConv(X)
@@ -72,6 +71,7 @@ class EEGNet(nn.Module):
 
 
 if __name__ == "__main__":
+    
     X = torch.ones((64, 1, 9, 250)).cuda()
     model = EEGNet(num_channels = 9, T = 250, num_classes = 40).cuda()
     output = model(X)
