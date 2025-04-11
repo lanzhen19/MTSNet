@@ -128,42 +128,42 @@ class Block_time(nn.Module):
 
 
 class ViT_MTFNet(nn.Module):
-    def __init__(self, depth_L, depth_M, num_time, attention_kernal_length, chs_num, class_num, dropout):
+    def __init__(self, depth_L, depth_M, time_points, frequency_components, attention_kernal_length, chs_num, class_num, dropout):
         super().__init__()
         self.token_num = chs_num * 2
-        self.token_dim = 560
-        self.dim = num_time
+        self.frequency_dim = frequency_components
+        self.time_dim = time_points
 
         self.to_patch_embedding = nn.Sequential(
             nn.Conv1d(chs_num, self.token_num, 1, padding=1 // 2, groups=1),
-            nn.LayerNorm(self.dim),
+            nn.LayerNorm(self.time_dim),
             nn.GELU(),
             nn.Dropout(dropout)
         )
 
         self.to_patch_embedding_fre = nn.Sequential(
             nn.Conv1d(chs_num, self.token_num, 1, padding=1 // 2, groups=1),
-            nn.LayerNorm(self.token_dim),
+            nn.LayerNorm(self.frequency_dim),
             nn.GELU(),
             nn.Dropout(dropout)
         )
 
         self.transformer = nn.Sequential(*[
-            Block_time(dim = self.dim,
+            Block_time(dim = self.time_dim,
                   token_num = self.token_num,
                   kernal_length = attention_kernal_length,
                 dropout = dropout
             ) for i in range(depth_L)])
 
         self.transformer_fre = nn.Sequential(*[
-            Block_fre(dim = self.token_dim,
+            Block_fre(dim = self.frequency_dim,
                   token_num=self.token_num,
                   kernal_length=attention_kernal_length,
                   dropout=dropout
                   ) for i in range(depth_L)])
 
         self.transformer_fusion = nn.Sequential(*[
-            Block_fusion(dim=(self.dim + self.token_dim),
+            Block_fusion(dim=(self.time_dim + self.frequency_dim),
                   token_num=self.token_num,
                   kernal_length=attention_kernal_length,
                   dropout=dropout
@@ -172,7 +172,7 @@ class ViT_MTFNet(nn.Module):
         self.mlp_head = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(dropout),
-            nn.Linear((self.dim + self.token_dim) * self.token_num, class_num * 6),
+            nn.Linear((self.time_dim + self.frequency_dim) * self.token_num, class_num * 6),
             nn.LayerNorm(class_num * 6),
             nn.GELU(),
             nn.Dropout(0.5),
@@ -186,8 +186,7 @@ class ViT_MTFNet(nn.Module):
 
 
     def forward(self, x, x_fre):
-        x = x.squeeze(1)
-        x_fre = x_fre.squeeze(1)
+
         x = self.to_patch_embedding(x)
         x_fre = self.to_patch_embedding_fre(x_fre)
         x = self.transformer(x)
@@ -195,13 +194,15 @@ class ViT_MTFNet(nn.Module):
         xy_cat = torch.cat((x, x_fre), axis=2)
         xy = self.transformer_fusion(xy_cat)
         out = self.mlp_head(xy)
+
         return out
 
 
 if __name__ == "__main__":
-    X = torch.randn(64, 1, 9, 250)
-    Y = torch.randn(64, 1, 9, 560)
-    model = ViT_MTFNet(depth_L = 2, depth_M = 2, num_time = 250, attention_kernal_length = 31, chs_num = 9, class_num = 40, dropout = 0.5)
+
+    X = torch.randn(64, 9, 250)
+    Y = torch.randn(64, 9, 560)
+    model = ViT_MTFNet(depth_L = 2, depth_M = 2, time_points = 250, frequency_components = 560, attention_kernal_length = 31, chs_num = 9, class_num = 40, dropout = 0.5)
     output = model(X, Y)
     print(output)
 
